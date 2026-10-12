@@ -1,0 +1,30 @@
+/* ================================================================
+ * 预览台专用样式（唯一预览层，勿进 styles.css）
+ * 1. preview-viewport：模拟 Obsidian 视口（居中、可滚、真实底色）
+ * 2. preview-toggle-btn / body.preview-fixed：compact 灰条修复开关
+ * ================================================================ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.preview-viewport {
+  max-width: 900px;
+  height: 100vh;
+  margin: 0 auto;
+  overflow: auto;
+  background: var(--background-primary);
+}
+
+.preview-toggle-btn {
+  position: fixed; top: 12px; right: 12px; z-index: 9999;
+  padding: 6px 14px; border-radius: 8px; cursor: pointer;
+  font: 13px -apple-system, sans-serif;
+  background: #444; color: #eee; border: 1px solid #666;
+}
+body.preview-fixed .memoria-list.is-compact .memoria-card-body::after {
+  content: none;
+  height: 0;
+}

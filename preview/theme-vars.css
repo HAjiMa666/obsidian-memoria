@@ -1,0 +1,25 @@
+/* 由 dump-preview.js 生成（2026-10-12 07:41:51）—— Obsidian 主窗口实测主题变量，勿手改 */
+:root {
+  --background-modifier-active-hover: color-mix(in oklch, hsl(0, 68%, 58%) 10%, transparent);
+  --background-modifier-border: #333333;
+  --background-modifier-border-hover: #3f3f3f;
+  --background-modifier-form-field: #2e2e2e;
+  --background-modifier-hover: color-mix(in oklch, white 6.7%, transparent);
+  --background-primary: #1C1C1C;
+  --background-primary-alt: #232323;
+  --background-secondary: #282828;
+  --code-background: #232323;
+  --font-monospace: '??', '??', ui-monospace, SFMono-Regular, "Cascadia Mono", "Roboto Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo, Monaco, "Consolas", "Source Code Pro", monospace;
+  --font-text: '??', '??', ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", "Google Sans Flex", Roboto, "Inter Variable", "Inter", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-ui-small: 13px;
+  --input-height: 30px;
+  --interactive-accent: hsl(0, 68%, 58%);
+  --interactive-accent-hover: hsl(calc(0 - 3), calc(68% * 1.02), calc(58% * 1.15));
+  --radius-s: 4px;
+  --text-accent: hsl(calc(0 - 3), calc(68% * 1.02), calc(58% * 1.15));
+  --text-error: #fb464c;
+  --text-faint: #666666;
+  --text-muted: #b3b3b3;
+  --text-normal: #dadada;
+  --text-on-accent: white;
+}
