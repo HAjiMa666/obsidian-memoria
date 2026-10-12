@@ -26,5 +26,15 @@
     "obsidian": "latest",
     "tslib": "2.8.1",
     "typescript": "5.7.2"
+  },
+  "dependencies": {
+    "@milkdown/core": "7.22.3",
+    "@milkdown/plugin-clipboard": "7.22.3",
+    "@milkdown/plugin-cursor": "7.22.3",
+    "@milkdown/plugin-history": "7.22.3",
+    "@milkdown/plugin-listener": "7.22.3",
+    "@milkdown/preset-commonmark": "7.22.3",
+    "@milkdown/preset-gfm": "7.22.3",
+    "@milkdown/utils": "7.22.3"
   }
 }

@@ -31,6 +31,7 @@ import {
   setTextareaValue,
   WrapHandler,
 } from "./textarea-utils";
+import { WysiwygComposer } from "./composer/wysiwyg-composer";
 
 interface Filter {
   tag: string | null;
@@ -113,6 +114,9 @@ export class MemoriaView extends ItemView {
 
   /** v2.1.0-iter8: 选中包裹快捷键处理器（** == * ~~ `）*/
   private wrapHandler = new WrapHandler();
+  /** v2.5.0-dev.0: WYSIWYG 输入区实例（Milkdown）。null = 旧 textarea 路径。
+   *  初始化失败或移动端不挂载（见 buildInputCard）。 */
+  private composer: WysiwygComposer | null = null;
 
   /** v2.1.0-iter10: "刚孵化"标记 —— 仅在下一次 renderBuddy 时给卡片加
    *  .is-just-hatched class 播放破壳动画，播完立即清除，
@@ -215,7 +219,11 @@ export class MemoriaView extends ItemView {
     }
     // v1.1.7: 恢复上次未发送的草稿
     const draft = this.loadDraft();
-    if (draft) this.inputEl.value = draft;
+    if (draft) {
+      this.inputEl.value = draft;
+      // v2.5.0-dev.0: 草稿同步进 WYSIWYG 编辑器（mount 未完成时由 pendingMd 暂存）
+      this.composer?.setValue(draft);
+    }
     // v1.1.8: 初次渲染后按实际内容算一次高度
     this.autoResizeInput();
     // v2.0.17: 有草稿的话让输入卡片保持展开态
@@ -231,6 +239,10 @@ export class MemoriaView extends ItemView {
     if (this.tagSuggest) {
       this.tagSuggest.destroy();
       this.tagSuggest = null;
+    }
+    if (this.composer) {
+      void this.composer.destroy();
+      this.composer = null;
     }
     this.childComponent.unload();
   }
@@ -575,8 +587,21 @@ export class MemoriaView extends ItemView {
     }
 
     window.requestAnimationFrame(() => {
-      this.inputEl?.focus();
+      this.focusActiveInput();
     });
+  }
+
+  /** v2.5.0-dev.0: 统一输入区聚焦/失焦入口（WYSIWYG 或旧 textarea）。
+   *  collapseFabInput / submitMemo / enterEditMode / openCaptureInput
+   *  四处调用点需 lockstep 行为，收敛在此。 */
+  private focusActiveInput(): void {
+    if (this.composer) this.composer.focus();
+    else this.inputEl?.focus();
+  }
+
+  private blurActiveInput(): void {
+    if (this.composer) this.composer.blur();
+    else this.inputEl?.blur();
   }
 
   /** v2.2.0: 收起 FAB 输入框。
@@ -588,11 +613,11 @@ export class MemoriaView extends ItemView {
   private collapseFabInput(force = false): void {
     if (!force && this.inputEl?.value.trim()) {
       // 有内容 —— 至少先 blur 让键盘收起，但卡片保持展开（用户能继续看）
-      this.inputEl.blur();
+      this.blurActiveInput();
       return;
     }
     this.contentEl.removeClass("is-fab-expanded");
-    this.inputEl?.blur();
+    this.blurActiveInput();
   }
 
   private buildInputCard(parent: HTMLElement): void {
@@ -825,6 +850,36 @@ export class MemoriaView extends ItemView {
     submitBtn.addEventListener("click", () => {
       void this.submitMemo();
     });
+
+    // v2.5.0-dev.0 切片 1: WYSIWYG 输入区（Milkdown，见 composer/wysiwyg-composer.ts）。
+    // 策略：textarea 隐藏保留为"镜像源"，编辑器 markdown 实时写回 inputEl.value，
+    // 草稿/提交/编辑模式等既有管线读 inputEl.value 的行为零改动。
+    // 移动端暂走旧 textarea（触控编辑未验证，见设计文档风险节）。
+    if (this.settings.wysiwygInput && !Platform.isMobile) {
+      const host = inputCard.createDiv({ cls: "memoria-wysiwyg-host" });
+      inputCard.addClass("wysiwyg-on");
+      this.composer = new WysiwygComposer(host, {
+        onMarkdown: (md) => {
+          if (this.inputEl.value === md) return;
+          this.inputEl.value = md;
+          if (!this.editingMemo) this.saveDraft(md);
+          this.syncInputCardContentState();
+        },
+        onFocus: () => inputCard.addClass("is-focused"),
+        onBlur: () => inputCard.removeClass("is-focused"),
+      });
+      this.composer.mount(this.inputEl.value).catch((err) => {
+        // 初始化失败 → 降级回旧 textarea 路径，不白屏（设计文档边界情况）
+        console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
+        host.remove();
+        inputCard.removeClass("wysiwyg-on");
+        toolLeft.removeClass("memoria-tools-textarea-only");
+        this.composer = null;
+      });
+      // 切片 2 会把工具栏插入按钮改接 PM 命令；此前它们对隐藏 textarea 的
+      // 写入在 WYSIWYG 下不可见，先视觉禁用避免"点了没反应"的困惑
+      toolLeft.addClass("memoria-tools-textarea-only");
+    }
   }
 
   /** 在光标处插入文本。
@@ -834,6 +889,7 @@ export class MemoriaView extends ItemView {
    *  注意：列表按钮走 insertListAtCursor / insertOrderedListAtCursor 已有专用逻辑，
    *  不会调到这里的选区分支；这里主要保护 # / 链接 / 引用 / 表格 等其他工具按钮。 */
   private insertAtCursor(text: string): void {
+    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -939,6 +995,7 @@ export class MemoriaView extends ItemView {
    *   单行时直接 `prefix + 选中文本` 包起来变成一个列表项。和 flomo / Typora / VSCode 行为一致。
    */
   private insertListAtCursor(prefix: string): void {
+    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -982,6 +1039,7 @@ export class MemoriaView extends ItemView {
    *   有选区时按行拆开，每行加递增序号（`1. ` `2. ` `3. ` ...），不再丢失原文本。
    */
   private insertOrderedListAtCursor(): void {
+    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -1174,6 +1232,7 @@ export class MemoriaView extends ItemView {
    *   每格会显示小数字提示（如 "3×4"），点击即立即插入并关闭弹层。
    */
   private showTablePicker(anchor: HTMLElement): void {
+    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     // 若已有弹层则关闭
     const existing = activeDocument.querySelector(".memoria-table-picker");
     if (existing) {
@@ -1346,6 +1405,7 @@ export class MemoriaView extends ItemView {
 
   /** 用浏览器 file picker 选图片 */
   private pickImageFromDisk(): void {
+    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     // iOS may discard a detached, locally scoped file input while Photos/Camera is
     // open. Keep one attached to the active document and referenced by the view
     // until the picker returns.
@@ -1419,7 +1479,9 @@ export class MemoriaView extends ItemView {
    */
   private shouldSendOnKeydown(e: KeyboardEvent): boolean {
     if (e.key !== "Enter") return false;
-    const mode = this.settings.sendHotkey;
+    // v2.5.0-dev.0: WYSIWYG 模式固定 Ctrl/Cmd+Enter 发送契约（Enter = 新段落），
+    //   sendHotkey="enter" 仅旧 textarea 路径生效（设计文档快捷键节）
+    const mode = this.composer ? "ctrl-enter" : this.settings.sendHotkey;
     const isMod = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
     if (mode === "enter") {
@@ -1483,6 +1545,8 @@ export class MemoriaView extends ItemView {
       //   新建模式按用户设置决定。
       if (this.settings.clearAfterSave) {
         this.inputEl.value = "";
+        // WYSIWYG 同步清空（replaceAll flush=true 重置 undo 栈，⌘Z 拉不回已发内容）
+        this.composer?.setValue("");
         this.clearDraft();
       }
       // v2.0.17-iter14: 发送完成后让 textarea 失焦，触发渐进式披露动画收起
@@ -1497,7 +1561,7 @@ export class MemoriaView extends ItemView {
       //   后续 blur 移除 is-focused 让 CSS min-height 变 40，但 inline height=98px
       //   优先级更高，textarea 死死卡在 98px。
       if (!this.editingMemo && this.settings.clearAfterSave) {
-        this.inputEl.blur();
+        this.blurActiveInput();
       }
       // v1.1.8: 清空后高度回到 min；没清空也重算一次（autoResize 幂等）
       this.autoResizeInput();
@@ -1763,6 +1827,8 @@ export class MemoriaView extends ItemView {
     if (this.inputEl.value.trim()) this.saveDraft(this.inputEl.value);
     this.editingMemo = memo;
     this.inputEl.value = memo.content;
+    // WYSIWYG 同步装载（此时 editingMemo 已置，镜像回调不会误存草稿）
+    this.composer?.setValue(memo.content);
     // v1.6.0: 把 memo 时间填进 datetime input（格式 yyyy-MM-ddTHH:mm，本地时区）
     if (this.editDateTimeEl) {
       this.editDateTimeEl.value = `${memo.date}T${memo.time}`;
@@ -1771,10 +1837,14 @@ export class MemoriaView extends ItemView {
     if (this.settings.mobileInputStyle === "fab") {
       this.contentEl.addClass("is-fab-expanded");
     }
-    this.inputEl.focus();
-    // 把光标移到末尾
-    const len = this.inputEl.value.length;
-    this.inputEl.setSelectionRange(len, len);
+    if (this.composer) {
+      this.composer.focus();
+    } else {
+      this.inputEl.focus();
+      // 把光标移到末尾
+      const len = this.inputEl.value.length;
+      this.inputEl.setSelectionRange(len, len);
+    }
     this.updateEditBanner();
     // v1.1.8: 按 memo 内容重算高度
     this.autoResizeInput();
@@ -1787,6 +1857,8 @@ export class MemoriaView extends ItemView {
   private exitEditMode(): void {
     this.editingMemo = null;
     this.inputEl.value = this.loadDraft();
+    // WYSIWYG 同步恢复草稿（此时 editingMemo 已清空，镜像回调的 saveDraft 无害）
+    this.composer?.setValue(this.inputEl.value);
     if (this.editDateTimeEl) this.editDateTimeEl.value = "";
     this.updateEditBanner();
     // v1.1.8: 草稿长度不一，重算高度

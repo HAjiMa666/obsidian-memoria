@@ -5102,3 +5102,130 @@ body.sc-style-context-background-image .memoria-main::after {
 .memoria-list .memoria-day-group:last-child {
   margin-bottom: 0;
 }
+
+/* ================== WYSIWYG 输入区（v2.5.0-dev.0） ==================
+ * 切片 1 骨架样式：对齐旧 textarea 的尺寸/字体/渐进披露动画。
+ * 完整编辑器主题（callout/表格/标题等的编辑态美化）在切片 3。
+ * ============================================================== */
+
+/* textarea 隐藏，仅作为 markdown 镜像源（草稿/提交管线读它） */
+.memoria-input-card.wysiwyg-on textarea.memoria-input {
+  display: none;
+}
+
+.memoria-input-card.wysiwyg-on .memoria-wysiwyg-host {
+  width: 100%;
+  box-sizing: border-box;
+  /* 对齐 .memoria-input：展开态 96px / 收起态 40px / 上限 40vh 内滚 */
+  min-height: 96px;
+  max-height: 40vh;
+  overflow-y: auto;
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.6;
+  /* 复用渐进披露的 0.7s min-height 过渡（textarea 同款曲线） */
+  transition: min-height 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 收起态（与旧 textarea 的 :not(...) 规则同条件） */
+.memoria-input-card:not(.is-focused):not(.has-content):not(.is-editing):not(.dragging) .memoria-wysiwyg-host {
+  min-height: 40px;
+}
+
+/* ProseMirror contenteditable 本体（white-space: pre-wrap 是 prosemirror-view
+   的硬性要求，缺失时光标/选区行为异常并触发控制台警告） */
+.memoria-wysiwyg-host .ProseMirror {
+  outline: none;
+  min-height: inherit;
+  padding: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  caret-color: var(--text-normal);
+}
+
+/* 段落间距：Enter = 新段落，间距取紧凑值（对齐卡片正文 p 的 0.3em） */
+.memoria-wysiwyg-host .ProseMirror p {
+  margin: 0.3em 0;
+}
+.memoria-wysiwyg-host .ProseMirror p:first-child {
+  margin-top: 0;
+}
+.memoria-wysiwyg-host .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* 切片 1 最小可用样式：列表/引用/代码/表格能看清结构（主题化在切片 3） */
+.memoria-wysiwyg-host .ProseMirror ul,
+.memoria-wysiwyg-host .ProseMirror ol {
+  margin: 0.3em 0;
+  padding-left: 1.6em;
+}
+.memoria-wysiwyg-host .ProseMirror li {
+  margin: 0.1em 0;
+}
+.memoria-wysiwyg-host .ProseMirror li p {
+  margin: 0;
+}
+.memoria-wysiwyg-host .ProseMirror blockquote {
+  margin: 0.5em 0;
+  padding: 2px 12px;
+  border-left: 3px solid var(--interactive-accent);
+}
+.memoria-wysiwyg-host .ProseMirror pre {
+  margin: 0.5em 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--code-background);
+  font-family: var(--font-monospace);
+  font-size: 13px;
+}
+.memoria-wysiwyg-host .ProseMirror code {
+  font-family: var(--font-monospace);
+  font-size: 0.92em;
+}
+.memoria-wysiwyg-host .ProseMirror table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.memoria-wysiwyg-host .ProseMirror th,
+.memoria-wysiwyg-host .ProseMirror td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 4px 10px;
+}
+.memoria-wysiwyg-host .ProseMirror th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+.memoria-wysiwyg-host .ProseMirror h1,
+.memoria-wysiwyg-host .ProseMirror h2,
+.memoria-wysiwyg-host .ProseMirror h3 {
+  margin: 0.5em 0 0.3em;
+  font-weight: 600;
+}
+.memoria-wysiwyg-host .ProseMirror h1 { font-size: 1.4em; }
+.memoria-wysiwyg-host .ProseMirror h2 { font-size: 1.25em; }
+.memoria-wysiwyg-host .ProseMirror h3 { font-size: 1.1em; }
+.memoria-wysiwyg-host .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 0.8em 0;
+}
+.memoria-wysiwyg-host .ProseMirror img {
+  max-width: 100%;
+}
+.memoria-wysiwyg-host .ProseMirror a {
+  color: var(--text-accent);
+}
+
+/* 切片 1：工具栏插入类按钮视觉禁用（切片 2 改接 PM 命令后移除） */
+.memoria-input-card.wysiwyg-on .memoria-input-tools.memoria-tools-textarea-only {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* 光标插件（plugin-cursor）：闪烁光标颜色 */
+.memoria-wysiwyg-host .ProseMirror .selection,
+.memoria-wysiwyg-host .ProseMirror ::selection {
+  background: var(--text-selection);
+}

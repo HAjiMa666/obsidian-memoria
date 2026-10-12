@@ -324,6 +324,19 @@ export class MemoriaSettingTab extends PluginSettingTab {
           })
       );
 
+    // v2.5.0-dev.0: WYSIWYG 输入区
+    new Setting(containerEl)
+      .setName(t("settings.wysiwyg.name"))
+      .setDesc(t("settings.wysiwyg.desc"))
+      .addToggle((tg) =>
+        tg
+          .setValue(this.plugin.settings.wysiwygInput)
+          .onChange(async (v) => {
+            this.plugin.settings.wysiwygInput = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // v2.2.0: 移动端输入框入口模式（FAB / 常驻）
     new Setting(containerEl)
       .setName(t("settings.mobileInputStyle.name"))

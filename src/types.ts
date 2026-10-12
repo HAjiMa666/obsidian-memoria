@@ -76,6 +76,11 @@ export interface MemoriaSettings {
    *   "ctrl-enter"  → Ctrl/Cmd+Enter 发送，Enter 换行（默认，对齐 flomo）
    *   "enter"       → Enter 发送，Shift+Enter 换行（适合环境中 Ctrl+Enter 被占用的用户） */
   sendHotkey: "enter" | "ctrl-enter";
+  /** v2.5.0-dev.0: 输入区改用 WYSIWYG 编辑器（Milkdown）。
+   *   true  → 引用/表格/基础格式在输入时直接渲染成型（Ctrl/Cmd+Enter 发送）
+   *   false → 旧 textarea 源码输入路径
+   *   移动端忽略此开关，始终走旧路径（触控编辑未验证） */
+  wysiwygInput: boolean;
   /** v2.0.20: 侧栏顶部默认视图
    *   "heatmap"  → 热力图（默认，沿用老行为）
    *   "calendar" → 月历
@@ -131,6 +136,7 @@ export const DEFAULT_SETTINGS: MemoriaSettings = {
   openOnStartup: false,
   buddy: null,
   mobileInputStyle: "fab",
+  wysiwygInput: true,
 };
 
 export const VIEW_TYPE_MEMORIA = "memoria-view";
