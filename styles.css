@@ -5083,3 +5083,35 @@ body.sc-style-context-background-image
   .memoria-card-body.is-collapsed::after {
   background: transparent;
 }
+
+/* ================== 焦点模式（v2.4.2-dev.1） ================== */
+/* Obsidian 状态栏（反向链接/字数统计）的顶边框在短列表下方会呈现为一条突兀的灰边。
+   当 Memoria 是当前窗口的活动视图时隐藏它；切回普通笔记视图即恢复。 */
+.app-container:has(.workspace-leaf.mod-active.memoria-workspace-leaf) .status-bar {
+  display: none;
+}
+
+/* 时间线尾部渐隐：笔记流向窗口底部自然消融，而非停在一片空白 */
+.memoria-main {
+  position: relative;
+}
+.memoria-main::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36px;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(to bottom, transparent, var(--background-primary));
+}
+/* Style Context 背景图模式下不绘制渐隐，避免盖住背景 */
+body.sc-style-context-background-image .memoria-main::after {
+  display: none;
+}
+
+/* 最后一个日期分组不再留 28px 尾巴 */
+.memoria-list .memoria-day-group:last-child {
+  margin-bottom: 0;
+}
