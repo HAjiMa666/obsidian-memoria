@@ -768,6 +768,34 @@ export class MemoriaView extends ItemView {
       });
     });
 
+    // v2.5.0-dev.0 切片 1: WYSIWYG 输入区（Milkdown，见 composer/wysiwyg-composer.ts）。
+    // 策略：textarea 隐藏保留为"镜像源"，编辑器 markdown 实时写回 inputEl.value，
+    // 草稿/提交/编辑模式等既有管线读 inputEl.value 的行为零改动。
+    // 移动端暂走旧 textarea（触控编辑未验证，见设计文档风险节）。
+    if (this.settings.wysiwygInput && !Platform.isMobile) {
+      const host = inputCard.createDiv({ cls: "memoria-wysiwyg-host" });
+      // 占位文案走 CSS ::before（attr(data-placeholder)），与 textarea 同源
+      host.setAttr("data-placeholder", t("input.placeholder"));
+      inputCard.addClass("wysiwyg-on");
+      this.composer = new WysiwygComposer(host, {
+        onMarkdown: (md) => {
+          if (this.inputEl.value === md) return;
+          this.inputEl.value = md;
+          if (!this.editingMemo) this.saveDraft(md);
+          this.syncInputCardContentState();
+        },
+        onFocus: () => inputCard.addClass("is-focused"),
+        onBlur: () => inputCard.removeClass("is-focused"),
+      });
+      this.composer.mount(this.inputEl.value).catch((err) => {
+        // 初始化失败 → 降级回旧 textarea 路径，不白屏（设计文档边界情况）
+        console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
+        host.remove();
+        inputCard.removeClass("wysiwyg-on");
+        this.composer = null;
+      });
+    }
+
     const inputToolbar = inputCard.createDiv({ cls: "memoria-input-toolbar" });
     // v2.5.0-dev.1: 工具栏 mousedown 阻止默认——否则点击工具按钮/发送按钮会抢走
     // 编辑器（或 textarea）焦点，is-focused 被移除 → 输入卡收起（用户反馈的
@@ -859,33 +887,6 @@ export class MemoriaView extends ItemView {
       void this.submitMemo();
     });
 
-    // v2.5.0-dev.0 切片 1: WYSIWYG 输入区（Milkdown，见 composer/wysiwyg-composer.ts）。
-    // 策略：textarea 隐藏保留为"镜像源"，编辑器 markdown 实时写回 inputEl.value，
-    // 草稿/提交/编辑模式等既有管线读 inputEl.value 的行为零改动。
-    // 移动端暂走旧 textarea（触控编辑未验证，见设计文档风险节）。
-    if (this.settings.wysiwygInput && !Platform.isMobile) {
-      const host = inputCard.createDiv({ cls: "memoria-wysiwyg-host" });
-      // 占位文案走 CSS ::before（attr(data-placeholder)），与 textarea 同源
-      host.setAttr("data-placeholder", t("input.placeholder"));
-      inputCard.addClass("wysiwyg-on");
-      this.composer = new WysiwygComposer(host, {
-        onMarkdown: (md) => {
-          if (this.inputEl.value === md) return;
-          this.inputEl.value = md;
-          if (!this.editingMemo) this.saveDraft(md);
-          this.syncInputCardContentState();
-        },
-        onFocus: () => inputCard.addClass("is-focused"),
-        onBlur: () => inputCard.removeClass("is-focused"),
-      });
-      this.composer.mount(this.inputEl.value).catch((err) => {
-        // 初始化失败 → 降级回旧 textarea 路径，不白屏（设计文档边界情况）
-        console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
-        host.remove();
-        inputCard.removeClass("wysiwyg-on");
-        this.composer = null;
-      });
-    }
   }
 
   /** 在光标处插入文本。

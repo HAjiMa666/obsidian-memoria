@@ -597,11 +597,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* v2.5.0-dev.1: 发丝线从工具栏上方移到下方——工具栏成为"报头"，
-   * 之下才是书写画布；原上方那条线让图标像浮在卡片顶上没有归属 */
-  margin: 0 0 6px;
-  padding: 0 0 8px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  /* v2.5.0-dev.2: 工具栏回到编辑区下方（flomo 式），发丝线在其上方；
+   * 间距恢复 textarea 时代的节奏 */
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
 }
 .memoria-input-tools {
   display: flex;
@@ -5197,17 +5197,25 @@ body.sc-style-context-background-image .memoria-main::after {
 }
 
 /* gfm 任务项：milkdown 只输出 li[data-item-type=task] + data-checked 属性，
- * 复选框视觉由这里补（crepe 主题之外 bare preset 不带样式） */
+ * 复选框视觉由这里补（crepe 主题之外 bare preset 不带样式）。
+ * li 内是块级 <p>——必须 flex 让复选框与文字并排（否则上下堆叠） */
 .memoria-wysiwyg-host .ProseMirror li[data-item-type="task"] {
   list-style: none;
+  display: flex;
+  align-items: flex-start;
+}
+.memoria-wysiwyg-host .ProseMirror li[data-item-type="task"] > p {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
 }
 .memoria-wysiwyg-host .ProseMirror li[data-item-type="task"]::before {
   content: "";
-  display: inline-block;
+  flex: 0 0 auto;
   width: 14px;
   height: 14px;
+  margin-top: 5px;
   margin-right: 7px;
-  vertical-align: -2px;
   border: 1.5px solid var(--text-muted);
   border-radius: 3px;
   transition: background 0.12s, border-color 0.12s;
@@ -5226,7 +5234,8 @@ body.sc-style-context-background-image .memoria-main::after {
 .memoria-wysiwyg-host .ProseMirror ul,
 .memoria-wysiwyg-host .ProseMirror ol {
   margin: 0.3em 0;
-  padding-left: 1.6em;
+  /* 1.3em：复选框+文字整体起点不过分右移（1.6em 观感缩进过大） */
+  padding-left: 1.3em;
 }
 .memoria-wysiwyg-host .ProseMirror li {
   margin: 0.1em 0;
