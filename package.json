@@ -35,6 +35,7 @@
     "@milkdown/plugin-listener": "7.22.3",
     "@milkdown/preset-commonmark": "7.22.3",
     "@milkdown/preset-gfm": "7.22.3",
+    "@milkdown/prose": "7.22.3",
     "@milkdown/utils": "7.22.3"
   }
 }

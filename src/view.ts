@@ -769,6 +769,14 @@ export class MemoriaView extends ItemView {
     });
 
     const inputToolbar = inputCard.createDiv({ cls: "memoria-input-toolbar" });
+    // v2.5.0-dev.1: 工具栏 mousedown 阻止默认——否则点击工具按钮/发送按钮会抢走
+    // 编辑器（或 textarea）焦点，is-focused 被移除 → 输入卡收起（用户反馈的
+    // "点工具就收起" bug）。datetime-local 除外：它需要真实焦点弹出选择器。
+    inputToolbar.addEventListener("mousedown", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("input")) return;
+      e.preventDefault();
+    });
     const toolLeft = inputToolbar.createDiv({ cls: "memoria-input-tools" });
 
     const addTagBtn = toolLeft.createEl("button", {
@@ -857,6 +865,8 @@ export class MemoriaView extends ItemView {
     // 移动端暂走旧 textarea（触控编辑未验证，见设计文档风险节）。
     if (this.settings.wysiwygInput && !Platform.isMobile) {
       const host = inputCard.createDiv({ cls: "memoria-wysiwyg-host" });
+      // 占位文案走 CSS ::before（attr(data-placeholder)），与 textarea 同源
+      host.setAttr("data-placeholder", t("input.placeholder"));
       inputCard.addClass("wysiwyg-on");
       this.composer = new WysiwygComposer(host, {
         onMarkdown: (md) => {
@@ -873,12 +883,8 @@ export class MemoriaView extends ItemView {
         console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
         host.remove();
         inputCard.removeClass("wysiwyg-on");
-        toolLeft.removeClass("memoria-tools-textarea-only");
         this.composer = null;
       });
-      // 切片 2 会把工具栏插入按钮改接 PM 命令；此前它们对隐藏 textarea 的
-      // 写入在 WYSIWYG 下不可见，先视觉禁用避免"点了没反应"的困惑
-      toolLeft.addClass("memoria-tools-textarea-only");
     }
   }
 
@@ -889,7 +895,11 @@ export class MemoriaView extends ItemView {
    *  注意：列表按钮走 insertListAtCursor / insertOrderedListAtCursor 已有专用逻辑，
    *  不会调到这里的选区分支；这里主要保护 # / 链接 / 引用 / 表格 等其他工具按钮。 */
   private insertAtCursor(text: string): void {
-    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
+    // v2.5.0-dev.1: 双路径——WYSIWYG 走 PM 文本插入，textarea 走原逻辑
+    if (this.composer) {
+      this.composer.insertTextAtCursor(text);
+      return;
+    }
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -995,7 +1005,12 @@ export class MemoriaView extends ItemView {
    *   单行时直接 `prefix + 选中文本` 包起来变成一个列表项。和 flomo / Typora / VSCode 行为一致。
    */
   private insertListAtCursor(prefix: string): void {
-    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
+    // v2.5.0-dev.1: 双路径——WYSIWYG 按前缀分派 PM 列表命令
+    if (this.composer) {
+      if (prefix.includes("[ ]")) this.composer.toggleTaskList();
+      else this.composer.wrapInBulletList();
+      return;
+    }
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -1039,7 +1054,10 @@ export class MemoriaView extends ItemView {
    *   有选区时按行拆开，每行加递增序号（`1. ` `2. ` `3. ` ...），不再丢失原文本。
    */
   private insertOrderedListAtCursor(): void {
-    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
+    if (this.composer) {
+      this.composer.wrapInOrderedList();
+      return;
+    }
     const el = this.inputEl;
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
@@ -1232,7 +1250,6 @@ export class MemoriaView extends ItemView {
    *   每格会显示小数字提示（如 "3×4"），点击即立即插入并关闭弹层。
    */
   private showTablePicker(anchor: HTMLElement): void {
-    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     // 若已有弹层则关闭
     const existing = activeDocument.querySelector(".memoria-table-picker");
     if (existing) {
@@ -1376,6 +1393,11 @@ export class MemoriaView extends ItemView {
 
   /** 在光标位置插入一个 rows × cols 的空 md 表格模板 */
   private insertTable(rows: number, cols: number): void {
+    // v2.5.0-dev.1: WYSIWYG 走 gfm 原生 insertTable 命令；textarea 走 md 模板
+    if (this.composer) {
+      this.composer.insertTable(rows, cols);
+      return;
+    }
     const header = "| " + Array(cols).fill("  ").join(" | ") + " |";
     const sep = "| " + Array(cols).fill("--").join(" | ") + " |";
     const body = Array(Math.max(0, rows - 1))
@@ -1405,7 +1427,6 @@ export class MemoriaView extends ItemView {
 
   /** 用浏览器 file picker 选图片 */
   private pickImageFromDisk(): void {
-    if (this.composer) return; // WYSIWYG 模式下工具栏未接 PM 命令（切片 2 接）
     // iOS may discard a detached, locally scoped file input while Photos/Camera is
     // open. Keep one attached to the active document and referenced by the view
     // until the picker returns.
@@ -1904,6 +1925,14 @@ export class MemoriaView extends ItemView {
       } else {
         this.inputEl.setAttr("placeholder", t("input.placeholder"));
       }
+    }
+    // v2.5.0-dev.1: WYSIWYG 占位文案与 textarea placeholder 保持同源
+    const host = inputCard?.querySelector(".memoria-wysiwyg-host");
+    if (host) {
+      host.setAttr(
+        "data-placeholder",
+        this.inputEl.getAttribute("placeholder") ?? ""
+      );
     }
   }
 

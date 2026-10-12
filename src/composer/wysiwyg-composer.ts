@@ -15,15 +15,21 @@ import {
   Editor,
   defaultValueCtx,
   editorViewCtx,
+  parserCtx,
   rootCtx,
 } from "@milkdown/core";
-import { gfm } from "@milkdown/preset-gfm";
-import { commonmark } from "@milkdown/preset-commonmark";
+import { gfm, insertTableCommand } from "@milkdown/preset-gfm";
+import {
+  commonmark,
+  wrapInBulletListCommand,
+  wrapInOrderedListCommand,
+} from "@milkdown/preset-commonmark";
 import { history } from "@milkdown/plugin-history";
 import { clipboard } from "@milkdown/plugin-clipboard";
 import { cursor } from "@milkdown/plugin-cursor";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { getMarkdown, replaceAll } from "@milkdown/utils";
+import { Slice } from "@milkdown/prose/model";
 
 export interface WysiwygCallbacks {
   /** markdown 内容变化（每次编辑器事务后触发，含 setValue） */
@@ -95,6 +101,74 @@ export class WysiwygComposer {
     this.editor?.action((ctx) => {
       ctx.get(editorViewCtx).dom.blur();
     });
+  }
+
+  /* ---------- 工具栏命令（view.ts 双路径按钮的 WYSIWYG 分支） ---------- */
+
+  /** 在光标处插入纯文本（#标签、图片 wikilink 等） */
+  insertTextAtCursor(text: string): void {
+    this.editor?.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { from, to } = view.state.selection;
+      view.dispatch(view.state.tr.insertText(text, from, to));
+    });
+    this.focus();
+  }
+
+  /** 在光标处插入一段 markdown（解析为节点后替换选区） */
+  insertMarkdown(md: string): void {
+    this.editor?.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const parsed = ctx.get(parserCtx)(md);
+      if (!parsed || typeof parsed === "string") return;
+      view.dispatch(
+        view.state.tr.replaceSelection(new Slice(parsed.content, 0, 0)).scrollIntoView()
+      );
+    });
+    this.focus();
+  }
+
+  /** 当前行/选区转无序列表 */
+  wrapInBulletList(): void {
+    // $Command.run 在 mount 后已绑定 ctx（注册期赋值），直接调用
+    wrapInBulletListCommand.run();
+    this.focus();
+  }
+
+  /** 当前行/选区转有序列表 */
+  wrapInOrderedList(): void {
+    wrapInOrderedListCommand.run();
+    this.focus();
+  }
+
+  /** 当前行转任务项（普通段落 → 任务；已是任务 → 退回普通列表项） */
+  toggleTaskList(): void {
+    // 先保证处于列表中（已是列表时 wrapIn 幂等），再翻转 list_item 的 checked
+    wrapInBulletListCommand.run();
+    this.editor?.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const $pos = state.doc.resolve(state.selection.from);
+      for (let d = $pos.depth; d > 0; d--) {
+        const node = $pos.node(d);
+        if (node.type.name === "list_item") {
+          view.dispatch(
+            state.tr.setNodeMarkup($pos.before(d), undefined, {
+              ...node.attrs,
+              checked: node.attrs.checked == null ? false : null,
+            })
+          );
+          break;
+        }
+      }
+    });
+    this.focus();
+  }
+
+  /** 插入 rows × cols 表格（gfm 原生命令，带表头行） */
+  insertTable(rows: number, cols: number): void {
+    insertTableCommand.run({ row: rows, col: cols });
+    this.focus();
   }
 
   async destroy(): Promise<void> {
