@@ -4088,16 +4088,6 @@
   overflow: hidden;
   position: relative;
 }
-.memoria-list.is-compact .memoria-card-body::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 2em;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(to bottom, transparent, var(--background-primary));
-}
 .memoria-list.is-compact .memoria-card {
   padding: 10px 14px;
 }
@@ -5071,10 +5061,7 @@ body.sc-style-context-background-image
 }
 
 body.sc-style-context-background-image
-  .memoria-card-body.is-collapsed::after,
-body.sc-style-context-background-image
-  .memoria-list.is-compact
-  .memoria-card-body::after {
+  .memoria-card-body.is-collapsed::after {
   background: transparent;
 }
 
