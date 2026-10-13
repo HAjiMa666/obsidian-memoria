@@ -118,6 +118,13 @@ export class WysiwygComposer {
     this.editor?.action((ctx) => ctx.get(editorViewCtx).focus());
   }
 
+
+  /** 暴露内部 editor（PmTagSuggest 等外部协作者需要 dispatch/coordsAtPos）。
+   *  热重载复活后是全新实例——调用方不要长期缓存返回值。 */
+  getEditor(): Editor | null {
+    return this.editor;
+  }
+
   blur(): void {
     this.editor?.action((ctx) => {
       ctx.get(editorViewCtx).dom.blur();

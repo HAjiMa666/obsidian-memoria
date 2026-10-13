@@ -6,6 +6,51 @@
 import { App, getAllTags, setIcon } from "obsidian";
 import { replaceTextareaRange } from "./textarea-utils";
 
+/** 收集 Vault 全部标签并按使用频率排序（TagSuggest 与 PmTagSuggest 共享） */
+export function collectTagCounts(app: App): { name: string; count: number }[] {
+  const counter = new Map<string, number>();
+  const cache = app.metadataCache;
+  const files = app.vault.getMarkdownFiles();
+  for (const f of files) {
+    const meta = cache.getFileCache(f);
+    if (!meta) continue;
+    const tags = getAllTags(meta) ?? [];
+    for (const tag of tags) {
+      // tag 形如 "#知识/学习"，去掉前面的 #
+      const name = tag.replace(/^#/, "");
+      if (!name) continue;
+      counter.set(name, (counter.get(name) ?? 0) + 1);
+    }
+  }
+  return [...counter.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/** 模糊匹配：优先前缀，其次包含与子段（#行 -> #知识/十万个为什么） */
+export function matchTags(
+  all: { name: string; count: number }[],
+  query: string
+): string[] {
+  if (!query) {
+    // 空查询：显示前 8 个最常用
+    return all.slice(0, 8).map((x) => x.name);
+  }
+  const q = query.toLowerCase();
+  const prefix: { name: string; count: number }[] = [];
+  const contain: { name: string; count: number }[] = [];
+  for (const t of all) {
+    const lower = t.name.toLowerCase();
+    if (lower === q) continue; // 完全相同就不必建议
+    if (lower.startsWith(q)) prefix.push(t);
+    else if (lower.includes(q)) contain.push(t);
+    else {
+      const segs = lower.split("/");
+      if (segs.some((s) => s.startsWith(q))) contain.push(t);
+    }
+  }
+  return [...prefix, ...contain].slice(0, 8).map((x) => x.name);
+}
 export class TagSuggest {
   private dropdown: HTMLElement | null = null;
   private items: string[] = [];
@@ -58,7 +103,7 @@ export class TagSuggest {
     }
     this.rangeStart = trigger.start;
     const all = this.collectAllTags();
-    this.items = this.match(all, trigger.query);
+    this.items = matchTags(all, trigger.query);
     if (this.items.length === 0) {
       this.close();
       return;
@@ -137,7 +182,9 @@ export class TagSuggest {
   // -------- 数据 --------
 
   /** 收集 Vault 里所有标签，按使用频率排序
-   *  v1.4.11: 30 秒 TTL 缓存 + metadataCache changed 事件失效。 */
+   *  v1.4.11: 30 秒 TTL 缓存 + metadataCache changed 事件失效。
+   *  v2.5.0-dev.2: 扫描与匹配逻辑提取为模块级 collectTagCounts / matchTags
+   *  （PmTagSuggest 共享），类内只保留缓存语义。 */
   private collectAllTags(): { name: string; count: number }[] {
     if (
       this.cachedTags &&
@@ -145,53 +192,12 @@ export class TagSuggest {
     ) {
       return this.cachedTags;
     }
-    const counter = new Map<string, number>();
-    const cache = this.app.metadataCache;
-    const files = this.app.vault.getMarkdownFiles();
-    for (const f of files) {
-      const meta = cache.getFileCache(f);
-      if (!meta) continue;
-      const tags = getAllTags(meta) ?? [];
-      for (const tag of tags) {
-        // tag 形如 "#知识/学习"，去掉前面的 #
-        const name = tag.replace(/^#/, "");
-        if (!name) continue;
-        counter.set(name, (counter.get(name) ?? 0) + 1);
-      }
-    }
-    const result = [...counter.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
+    const result = collectTagCounts(this.app);
     this.cachedTags = result;
     this.cacheTime = Date.now();
     return result;
   }
 
-  /** 模糊匹配：优先前缀，其次包含 */
-  private match(
-    all: { name: string; count: number }[],
-    query: string
-  ): string[] {
-    if (!query) {
-      // 空查询：显示前 8 个最常用
-      return all.slice(0, 8).map((x) => x.name);
-    }
-    const q = query.toLowerCase();
-    const prefix: { name: string; count: number }[] = [];
-    const contain: { name: string; count: number }[] = [];
-    for (const t of all) {
-      const lower = t.name.toLowerCase();
-      if (lower === q) continue; // 完全相同就不必建议
-      if (lower.startsWith(q)) prefix.push(t);
-      else if (lower.includes(q)) contain.push(t);
-      // 也支持子段匹配（# 行 -> #知识/十万个为什么）
-      else {
-        const segs = lower.split("/");
-        if (segs.some((s) => s.startsWith(q))) contain.push(t);
-      }
-    }
-    return [...prefix, ...contain].slice(0, 8).map((x) => x.name);
-  }
 
   // -------- UI --------
 

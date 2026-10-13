@@ -32,6 +32,7 @@ import {
   WrapHandler,
 } from "./textarea-utils";
 import { WysiwygComposer } from "./composer/wysiwyg-composer";
+import { PmTagSuggest } from "./composer/pm-tag-suggest";
 
 interface Filter {
   tag: string | null;
@@ -114,6 +115,8 @@ export class MemoriaView extends ItemView {
 
   /** v2.1.0-iter8: 选中包裹快捷键处理器（** == * ~~ `）*/
   private wrapHandler = new WrapHandler();
+  /** v2.5.0-dev.2: WYSIWYG 编辑器的 #标签联想（与 TagSuggest 对等的 PM 版） */
+  private pmTagSuggest: PmTagSuggest | null = null;
   /** v2.5.0-dev.0: WYSIWYG 输入区实例（Milkdown）。null = 旧 textarea 路径。
    *  初始化失败或移动端不挂载（见 buildInputCard）。 */
   private composer: WysiwygComposer | null = null;
@@ -221,13 +224,19 @@ export class MemoriaView extends ItemView {
     // v2.5.0-dev.1: 插件热重载走 onClose（composer.destroy）但 view DOM 保留
     // 不重建——onOpen 重跑时 composer 已死，复用原 host 重新挂载
     if (this.composer && !this.composer.isAlive()) {
-      this.composer.mount(this.inputEl.value).catch((err) => {
-        console.error("[Memoria] WYSIWYG remount failed:", err);
-        this.composer = null;
-        const card = this.inputEl.closest(".memoria-input-card");
-        card?.querySelector(".memoria-wysiwyg-host")?.remove();
-        card?.removeClass("wysiwyg-on");
-      });
+      this.composer
+        .mount(this.inputEl.value)
+        .then(() => {
+          // 复活产生全新 view.dom —— 标签联想重绑（bind 幂等解旧）
+          this.pmTagSuggest?.bind();
+        })
+        .catch((err) => {
+          console.error("[Memoria] WYSIWYG remount failed:", err);
+          this.composer = null;
+          const card = this.inputEl.closest(".memoria-input-card");
+          card?.querySelector(".memoria-wysiwyg-host")?.remove();
+          card?.removeClass("wysiwyg-on");
+        });
     }
     // v1.1.7: 恢复上次未发送的草稿
     const draft = this.loadDraft();
@@ -259,6 +268,10 @@ export class MemoriaView extends ItemView {
     if (this.tagSuggest) {
       this.tagSuggest.destroy();
       this.tagSuggest = null;
+    }
+    if (this.pmTagSuggest) {
+      // 解绑事件与下拉；保留实例供热重载后 onOpen 复活路径复用（重绑新 dom）
+      this.pmTagSuggest.unbind();
     }
     if (this.composer) {
       // 只销毁编辑器实例，保留 composer 壳与 host 引用——插件热重载后
@@ -808,13 +821,24 @@ export class MemoriaView extends ItemView {
         onFocus: () => inputCard.addClass("is-focused"),
         onBlur: () => inputCard.removeClass("is-focused"),
       });
-      this.composer.mount(this.inputEl.value).catch((err) => {
-        // 初始化失败 → 降级回旧 textarea 路径，不白屏（设计文档边界情况）
-        console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
-        host.remove();
-        inputCard.removeClass("wysiwyg-on");
-        this.composer = null;
-      });
+      this.composer
+        .mount(this.inputEl.value)
+        .then(() => {
+          // v2.5.0-dev.2: 编辑器就绪后挂 #标签联想（绑定 PM view.dom）
+          if (!this.pmTagSuggest) {
+            this.pmTagSuggest = new PmTagSuggest(this.app, this.composer!);
+          }
+          this.pmTagSuggest.bind();
+        })
+        .catch((err) => {
+          // 初始化失败 → 降级回旧 textarea 路径，不白屏（设计文档边界情况）
+          console.error("[Memoria] WYSIWYG init failed, fallback to textarea:", err);
+          host.remove();
+          inputCard.removeClass("wysiwyg-on");
+          this.composer = null;
+          this.pmTagSuggest?.destroy();
+          this.pmTagSuggest = null;
+        });
     }
 
     const inputToolbar = inputCard.createDiv({ cls: "memoria-input-toolbar" });
