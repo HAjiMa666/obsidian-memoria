@@ -29,6 +29,7 @@ import { cursor } from "@milkdown/plugin-cursor";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { getMarkdown, replaceAll } from "@milkdown/utils";
 import { Slice } from "@milkdown/prose/model";
+import { TextSelection } from "@milkdown/prose/state";
 import { callout } from "./callout";
 
 export interface WysiwygCallbacks {
@@ -139,6 +140,28 @@ export class WysiwygComposer {
   insertMarkdown(md: string): void {
     this.editor?.action((ctx) => {
       const view = ctx.get(editorViewCtx);
+      const parsed = ctx.get(parserCtx)(md);
+      if (!parsed || typeof parsed === "string") return;
+      view.dispatch(
+        view.state.tr.replaceSelection(new Slice(parsed.content, 0, 0)).scrollIntoView()
+      );
+    });
+    this.focus();
+  }
+
+  /** 在文档末尾追加 markdown（undo 可撤销，光标随之落到末尾）。
+   *  引用历史笔记（quoteMemo）等拼接场景使用——区别于 setValue 的
+   *  整体替换（flush 重置 undo 栈，撤不回引用插入）。 */
+  appendMarkdown(md: string): void {
+    this.editor?.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      // 光标先移到文档末尾的文本位置
+      const end = view.state.doc.content.size;
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.near(view.state.doc.resolve(end), -1)
+        )
+      );
       const parsed = ctx.get(parserCtx)(md);
       if (!parsed || typeof parsed === "string") return;
       view.dispatch(

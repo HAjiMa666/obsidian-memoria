@@ -3988,21 +3988,32 @@ export class MemoriaView extends ItemView {
     const block = `> [!quote] ${memo.date} ${memo.time}\n${quoted}\n\n`;
 
     // 如果输入框已有内容，追加；否则直接填入
-    // v2.1.0-iter8: 用 setTextareaValue 保留 undo（用户能 Ctrl+Z 撤销引用插入）
-    if (this.inputEl.value.trim()) {
+    // v2.5.0-dev.2: WYSIWYG 双路径——markdown 追加进 PM（undo 可撤销，
+    // 镜像由 markdownUpdated 回写 textarea）；textarea 路径保留原逻辑
+    if (this.composer) {
+      this.composer.appendMarkdown(block);
+      this.focusActiveInput();
+      this.autoResizeInput();
+      this.syncInputCardContentState();
+    } else if (this.inputEl.value.trim()) {
       const trimmed = this.inputEl.value.replace(/\s+$/, "");
       setTextareaValue(this.inputEl, trimmed + "\n\n" + block);
+      this.inputEl.focus();
+      // 光标移到末尾
+      const pos = this.inputEl.value.length;
+      this.inputEl.setSelectionRange(pos, pos);
+      // v1.1.8: 引用块很可能多行，重算高度
+      this.autoResizeInput();
+      // v2.0.17: 引用一定使输入框有内容 → 保持展开态
+      this.syncInputCardContentState();
     } else {
       setTextareaValue(this.inputEl, block);
+      this.inputEl.focus();
+      const pos = this.inputEl.value.length;
+      this.inputEl.setSelectionRange(pos, pos);
+      this.autoResizeInput();
+      this.syncInputCardContentState();
     }
-    this.inputEl.focus();
-    // 光标移到末尾
-    const pos = this.inputEl.value.length;
-    this.inputEl.setSelectionRange(pos, pos);
-    // v1.1.8: 引用块很可能多行，重算高度
-    this.autoResizeInput();
-    // v2.0.17: 引用一定使输入框有内容 → 保持展开态
-    this.syncInputCardContentState();
     new Notice(t("notice.quoted"));
   }
 
