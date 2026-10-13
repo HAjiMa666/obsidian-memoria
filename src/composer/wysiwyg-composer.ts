@@ -9,7 +9,6 @@
  * 快捷键：Ctrl/Cmd+Enter 发送由 view.ts 在 contentEl capture 阶段的统一
  * 监听处理（activeElement 在视图内即命中，contenteditable 也不例外）；
  * Enter = 新段落（Notion/flomo 直觉）。WYSIWYG 模式下 sendHotkey="enter"
- * 不生效（Enter 已被段落语义占用，见 shouldSendOnKeydown 的守卫）。
  */
 import {
   Editor,
@@ -30,6 +29,7 @@ import { cursor } from "@milkdown/plugin-cursor";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { getMarkdown, replaceAll } from "@milkdown/utils";
 import { Slice } from "@milkdown/prose/model";
+import { callout } from "./callout";
 
 export interface WysiwygCallbacks {
   /** markdown 内容变化（每次编辑器事务后触发，含 setValue） */
@@ -40,6 +40,7 @@ export interface WysiwygCallbacks {
 
 export class WysiwygComposer {
   private editor: Editor | null = null;
+  private ready: Promise<void> | null = null;
   /** mount 完成前收到 setValue 时暂存，mount 后应用。
    *  buildInputCard 是同步调用，而 onOpen 的草稿恢复 / enterEditMode 的
    *  内容装载可能在异步 mount 完成前发生。 */
@@ -50,8 +51,20 @@ export class WysiwygComposer {
     private cb: WysiwygCallbacks
   ) {}
 
-  /** 异步初始化。失败时抛错，由调用方降级回旧 textarea。 */
-  async mount(initialMd: string): Promise<void> {
+  /** 异步初始化。失败时抛错，由调用方降级回旧 textarea。
+   *  mount 先于调用方 setValue 完成时，pendingMd 没有消费者——
+   *  调用方应通过 whenReady() 等待后重设内容。 */
+  mount(initialMd: string): Promise<void> {
+    this.ready = this.doMount(initialMd);
+    return this.ready;
+  }
+
+  /** 等待 mount 完成（含热重载复活场景）；未启动过则立即返回 */
+  async whenReady(): Promise<void> {
+    if (this.ready) await this.ready;
+  }
+
+  private async doMount(initialMd: string): Promise<void> {
     const editor = await new Editor()
       .config((ctx) => {
         ctx.set(rootCtx, this.host);
@@ -62,6 +75,7 @@ export class WysiwygComposer {
       })
       .use(commonmark)
       .use(gfm)
+      .use(callout)
       .use(history)
       .use(clipboard)
       .use(cursor)
@@ -91,6 +105,12 @@ export class WysiwygComposer {
       return;
     }
     this.editor.action(replaceAll(md, flush));
+  }
+
+  /** mount 后为 true；destroy（如插件热重载的 onClose）后为 false。
+   *  view.onOpen 借此判断是否需要重新挂载复用 host。 */
+  isAlive(): boolean {
+    return this.editor !== null;
   }
 
   focus(): void {
@@ -172,7 +192,10 @@ export class WysiwygComposer {
   }
 
   async destroy(): Promise<void> {
-    await this.editor?.destroy();
+    // 先同步置死再异步清理：onClose 的 destroy 与 onOpen 的复活 remount
+    // 会竞态——若 await 后才置 null，会杀掉刚 remount 完成的新 editor
+    const ed = this.editor;
     this.editor = null;
+    await ed?.destroy();
   }
 }

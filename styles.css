@@ -5294,6 +5294,68 @@ body.sc-style-context-background-image .memoria-main::after {
   color: var(--text-accent);
 }
 
+/* Obsidian callout（编辑器侧）：div[data-callout=type]，首段 = 标题（可编辑）。
+ * 视觉对齐 feed 侧 .memoria-card-body .callout 的克制风格 */
+.memoria-wysiwyg-host .ProseMirror div[data-callout] {
+  margin: 0.5em 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid
+    color-mix(in srgb, var(--interactive-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--interactive-accent) 7%, transparent);
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout] > p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout] > p:first-child::before {
+  /* 兜底图标（先声明，特异性相同靠顺序让位给下面的类型规则） */
+  content: "❖";
+  color: var(--interactive-accent);
+  font-size: 13px;
+  line-height: 1;
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="quote"] > p:first-child::before {
+  content: "❝";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="note"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="abstract"] > p:first-child::before {
+  content: "✎";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="info"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="todo"] > p:first-child::before {
+  content: "ⓘ";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="tip"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="hint"] > p:first-child::before {
+  content: "★";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="warning"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="caution"] > p:first-child::before {
+  content: "⚠";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="danger"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="error"] > p:first-child::before {
+  content: "⚡";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout="success"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="check"] > p:first-child::before,
+.memoria-wysiwyg-host .ProseMirror div[data-callout="done"] > p:first-child::before {
+  content: "✓";
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout] > p {
+  margin: 0.2em 0;
+  font-size: 14px;
+}
+.memoria-wysiwyg-host .ProseMirror div[data-callout] > p:first-child {
+  font-size: 12.5px;
+}
+
 
 /* 光标插件（plugin-cursor）：闪烁光标颜色 */
 .memoria-wysiwyg-host .ProseMirror .selection,

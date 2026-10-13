@@ -217,12 +217,32 @@ export class MemoriaView extends ItemView {
     } catch (err) {
       console.error("[Memoria] reloadAll failed:", err);
     }
+
+    // v2.5.0-dev.1: 插件热重载走 onClose（composer.destroy）但 view DOM 保留
+    // 不重建——onOpen 重跑时 composer 已死，复用原 host 重新挂载
+    if (this.composer && !this.composer.isAlive()) {
+      this.composer.mount(this.inputEl.value).catch((err) => {
+        console.error("[Memoria] WYSIWYG remount failed:", err);
+        this.composer = null;
+        const card = this.inputEl.closest(".memoria-input-card");
+        card?.querySelector(".memoria-wysiwyg-host")?.remove();
+        card?.removeClass("wysiwyg-on");
+      });
+    }
     // v1.1.7: 恢复上次未发送的草稿
     const draft = this.loadDraft();
     if (draft) {
       this.inputEl.value = draft;
-      // v2.5.0-dev.0: 草稿同步进 WYSIWYG 编辑器（mount 未完成时由 pendingMd 暂存）
+      // v2.5.0-dev.1: 草稿同步进 WYSIWYG 编辑器。pendingMd 只在
+      // "mount 晚于 setValue" 时兜底；mount 早于此处完成时没人消费它，
+      // 所以显式等待就绪后再设一次（幂等）
       this.composer?.setValue(draft);
+      this.composer
+        ?.whenReady()
+        .then(() => this.composer?.setValue(draft))
+        .catch(() => {
+          /* mount 失败已由 buildInputCard 的降级处理 */
+        });
     }
     // v1.1.8: 初次渲染后按实际内容算一次高度
     this.autoResizeInput();
@@ -241,8 +261,9 @@ export class MemoriaView extends ItemView {
       this.tagSuggest = null;
     }
     if (this.composer) {
+      // 只销毁编辑器实例，保留 composer 壳与 host 引用——插件热重载后
+      // view DOM 不重建，onOpen 靠 isAlive() 判定后复用 host 重新挂载
       void this.composer.destroy();
-      this.composer = null;
     }
     this.childComponent.unload();
   }
